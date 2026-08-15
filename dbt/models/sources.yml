@@ -1,0 +1,17 @@
+version: 2
+sources:
+  - name: raw
+    database: "{{ env_var('DBT_DATABASE', 'analytics') }}"
+    schema: raw
+    loader: minio_python_ingestion
+    tables:
+      - name: customers
+        loaded_at_field: _loaded_at
+      - name: products
+        loaded_at_field: _loaded_at
+      - name: orders
+        loaded_at_field: _loaded_at
+      - name: order_items
+        loaded_at_field: _loaded_at
+      - name: payments
+        loaded_at_field: _loaded_at

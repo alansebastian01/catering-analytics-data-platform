@@ -1,0 +1,17 @@
+.env
+.env.*.local
+!/.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+logs/*
+!logs/.gitkeep
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+backups/*
+!backups/.gitkeep
+*.zip
+.DS_Store
+Thumbs.db

@@ -1,0 +1,264 @@
+name: ${COMPOSE_PROJECT_NAME:-catering-analytics}
+
+x-common-logging: &common-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:18.4-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      INGEST_USER: ${INGEST_USER}
+      INGEST_PASSWORD: ${INGEST_PASSWORD}
+      DBT_USER: ${DBT_USER}
+      DBT_PASSWORD: ${DBT_PASSWORD}
+      BI_READER_USER: ${BI_READER_USER}
+      BI_READER_PASSWORD: ${BI_READER_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - track_io_timing=on
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ADMIN_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    logging: *common-logging
+    networks: [data_net]
+
+  minio:
+    # Source-built, pinned MinIO security release for reproducible local learning.
+    # See docs/13-version-policy.md before using MinIO for a real deployment.
+    build:
+      context: ./docker/minio
+      dockerfile: Dockerfile
+    image: catering-minio:RELEASE.2025-10-15T17-29-55Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    logging: *common-logging
+    networks: [data_net]
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_PIPELINE_USER: ${MINIO_PIPELINE_USER}
+      MINIO_PIPELINE_PASSWORD: ${MINIO_PIPELINE_PASSWORD}
+      MINIO_RAW_BUCKET: ${MINIO_RAW_BUCKET}
+      MINIO_CURATED_BUCKET: ${MINIO_CURATED_BUCKET}
+      MINIO_QUARANTINE_BUCKET: ${MINIO_QUARANTINE_BUCKET}
+    volumes:
+      - ./minio/policies:/policies:ro
+    entrypoint: >-
+      /bin/sh -ec '
+      mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}";
+      mc mb --ignore-existing "local/$${MINIO_RAW_BUCKET}";
+      mc mb --ignore-existing "local/$${MINIO_CURATED_BUCKET}";
+      mc mb --ignore-existing "local/$${MINIO_QUARANTINE_BUCKET}";
+      mc anonymous set none "local/$${MINIO_RAW_BUCKET}";
+      mc anonymous set none "local/$${MINIO_CURATED_BUCKET}";
+      mc anonymous set none "local/$${MINIO_QUARANTINE_BUCKET}";
+      mc admin user add local "$${MINIO_PIPELINE_USER}" "$${MINIO_PIPELINE_PASSWORD}" || true;
+      mc admin policy create local pipeline-rw /policies/pipeline-rw.json || true;
+      mc admin policy attach local pipeline-rw --user "$${MINIO_PIPELINE_USER}" || true;
+      echo "MinIO buckets and pipeline identity are ready.";
+      '
+    logging: *common-logging
+    networks: [data_net]
+
+  pipeline:
+    build:
+      context: .
+      dockerfile: docker/pipeline/Dockerfile
+    restart: "no"
+    profiles: ["tools"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_PIPELINE_USER}
+      MINIO_SECRET_KEY: ${MINIO_PIPELINE_PASSWORD}
+      MINIO_RAW_BUCKET: ${MINIO_RAW_BUCKET}
+      MINIO_CURATED_BUCKET: ${MINIO_CURATED_BUCKET}
+      MINIO_QUARANTINE_BUCKET: ${MINIO_QUARANTINE_BUCKET}
+      INGEST_DSN: postgresql://${INGEST_USER}:${INGEST_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DBT_HOST: postgres
+      DBT_PORT: 5432
+      DBT_DATABASE: ${POSTGRES_DB}
+      DBT_USER: ${DBT_USER}
+      DBT_PASSWORD: ${DBT_PASSWORD}
+      ORDER_COUNT: ${ORDER_COUNT}
+      CUSTOMER_COUNT: ${CUSTOMER_COUNT}
+      PRODUCT_COUNT: ${PRODUCT_COUNT}
+      BAD_RECORD_PERCENT: ${BAD_RECORD_PERCENT}
+      GENERATOR_SEED: ${GENERATOR_SEED}
+      LOG_LEVEL: ${LOG_LEVEL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./logs:/app/logs
+      - ./dbt:/app/dbt
+    logging: *common-logging
+    networks: [data_net]
+
+  hop-web:
+    image: apache/hop-web:2.18.1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HOP_WEB_PORT}:8080"
+    volumes:
+      - hop_data:/files
+      - ./hop:/project:rw
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    logging: *common-logging
+    networks: [data_net]
+
+  superset-meta:
+    image: postgres:18.4-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: ${SUPERSET_META_PASSWORD}
+      POSTGRES_DB: superset
+    volumes:
+      - superset_meta_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    logging: *common-logging
+    networks: [data_net]
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *common-logging
+    networks: [data_net]
+
+  superset-init:
+    build:
+      context: ./docker/superset
+      dockerfile: Dockerfile
+    restart: "no"
+    depends_on:
+      superset-meta:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_METADATA_DB_URI: postgresql+psycopg2://superset:${SUPERSET_META_PASSWORD}@superset-meta:5432/superset
+      SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+      SUPERSET_ADMIN_FIRSTNAME: ${SUPERSET_ADMIN_FIRSTNAME}
+      SUPERSET_ADMIN_LASTNAME: ${SUPERSET_ADMIN_LASTNAME}
+      SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL}
+    volumes:
+      - ./docker/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+    command: >-
+      /bin/sh -ec '
+      superset db upgrade;
+      superset fab create-admin
+        --username "$${SUPERSET_ADMIN_USERNAME}"
+        --firstname "$${SUPERSET_ADMIN_FIRSTNAME}"
+        --lastname "$${SUPERSET_ADMIN_LASTNAME}"
+        --email "$${SUPERSET_ADMIN_EMAIL}"
+        --password "$${SUPERSET_ADMIN_PASSWORD}" || true;
+      superset init;
+      '
+    logging: *common-logging
+    networks: [data_net]
+
+  superset:
+    build:
+      context: ./docker/superset
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_METADATA_DB_URI: postgresql+psycopg2://superset:${SUPERSET_META_PASSWORD}@superset-meta:5432/superset
+    volumes:
+      - ./docker/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+      - superset_home:/app/superset_home
+    command:
+      - /bin/sh
+      - -ec
+      - gunicorn --bind 0.0.0.0:8088 --workers 2 --threads 4 --timeout 120 --limit-request-line 0 'superset.app:create_app()'
+    ports:
+      - "127.0.0.1:${SUPERSET_PORT}:8088"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    logging: *common-logging
+    networks: [data_net]
+
+networks:
+  data_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
+  hop_data:
+  superset_meta_data:
+  superset_home:
+  redis_data:

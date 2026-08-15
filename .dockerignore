@@ -1,0 +1,9 @@
+.git
+.env
+backups
+logs
+**/__pycache__
+dbt/target
+dbt/logs
+dbt/dbt_packages
+*.zip

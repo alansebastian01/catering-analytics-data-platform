@@ -1,0 +1,6 @@
+boto3==1.40.18
+botocore==1.40.18
+psycopg[binary]==3.2.9
+Faker==37.5.3
+dbt-core==1.12.0
+dbt-postgres==1.11.0
