@@ -100,7 +100,6 @@ services:
 
   minio-init:
     image: minio/mc:RELEASE.2025-08-13T08-35-41Z
-
     restart: "no"
 
     depends_on:
@@ -211,13 +210,75 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-
       minio-init:
         condition: service_completed_successfully
 
     volumes:
       - ./logs:/app/logs
       - ./dbt:/app/dbt
+
+    logging: *common-logging
+    networks:
+      - data_net
+
+
+  pipeline-runner:
+    build:
+      context: .
+      dockerfile: docker/pipeline/Dockerfile
+
+    restart: unless-stopped
+
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_PIPELINE_USER}
+      MINIO_SECRET_KEY: ${MINIO_PIPELINE_PASSWORD}
+
+      MINIO_RAW_BUCKET: ${MINIO_RAW_BUCKET}
+      MINIO_CURATED_BUCKET: ${MINIO_CURATED_BUCKET}
+      MINIO_QUARANTINE_BUCKET: ${MINIO_QUARANTINE_BUCKET}
+
+      INGEST_DSN: postgresql://${INGEST_USER}:${INGEST_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+      DBT_HOST: postgres
+      DBT_PORT: 5432
+      DBT_DATABASE: ${POSTGRES_DB}
+      DBT_USER: ${DBT_USER}
+      DBT_PASSWORD: ${DBT_PASSWORD}
+
+      ORDER_COUNT: ${ORDER_COUNT}
+      CUSTOMER_COUNT: ${CUSTOMER_COUNT}
+      PRODUCT_COUNT: ${PRODUCT_COUNT}
+
+      BAD_RECORD_PERCENT: 0
+      GENERATOR_SEED: ${GENERATOR_SEED}
+
+      LOG_LEVEL: ${LOG_LEVEL}
+
+    command:
+      - uvicorn
+      - src.pipeline_runner_api:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
     logging: *common-logging
     networks:
@@ -239,9 +300,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-
       minio-init:
         condition: service_completed_successfully
+      pipeline-runner:
+        condition: service_healthy
 
     logging: *common-logging
     networks:
@@ -316,7 +378,6 @@ services:
       dockerfile: Dockerfile
 
     image: catering-analytics-superset:6.1.0-local
-
     container_name: catering-analytics-superset
 
     restart: unless-stopped
@@ -324,7 +385,6 @@ services:
     depends_on:
       superset-meta:
         condition: service_healthy
-
       redis:
         condition: service_healthy
 
