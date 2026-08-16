@@ -121,51 +121,51 @@ services:
     volumes:
       - ./minio/policies:/policies:ro
 
-    entrypoint: >-
-      /bin/sh -ec '
-      mc alias set local
-        http://minio:9000
-        "$${MINIO_ROOT_USER}"
-        "$${MINIO_ROOT_PASSWORD}";
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        echo "Configuring MinIO..."
 
-      mc mb --ignore-existing
-        "local/$${MINIO_RAW_BUCKET}";
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
 
-      mc mb --ignore-existing
-        "local/$${MINIO_CURATED_BUCKET}";
+        echo "Creating buckets if they do not already exist..."
 
-      mc mb --ignore-existing
-        "local/$${MINIO_QUARANTINE_BUCKET}";
+        mc mb --ignore-existing "local/$${MINIO_RAW_BUCKET}"
+        mc mb --ignore-existing "local/$${MINIO_CURATED_BUCKET}"
+        mc mb --ignore-existing "local/$${MINIO_QUARANTINE_BUCKET}"
 
-      mc anonymous set none
-        "local/$${MINIO_RAW_BUCKET}";
+        echo "Disabling anonymous access..."
 
-      mc anonymous set none
-        "local/$${MINIO_CURATED_BUCKET}";
+        mc anonymous set none "local/$${MINIO_RAW_BUCKET}"
+        mc anonymous set none "local/$${MINIO_CURATED_BUCKET}"
+        mc anonymous set none "local/$${MINIO_QUARANTINE_BUCKET}"
 
-      mc anonymous set none
-        "local/$${MINIO_QUARANTINE_BUCKET}";
+        echo "Creating pipeline user if needed..."
 
-      mc admin user add
-        local
-        "$${MINIO_PIPELINE_USER}"
-        "$${MINIO_PIPELINE_PASSWORD}"
-        || true;
+        mc admin user add \
+          local \
+          "$${MINIO_PIPELINE_USER}" \
+          "$${MINIO_PIPELINE_PASSWORD}" \
+          || true
 
-      mc admin policy create
-        local
-        pipeline-rw
-        /policies/pipeline-rw.json
-        || true;
+        echo "Creating pipeline policy if needed..."
 
-      mc admin policy attach
-        local
-        pipeline-rw
-        --user "$${MINIO_PIPELINE_USER}"
-        || true;
+        mc admin policy create \
+          local \
+          pipeline-rw \
+          /policies/pipeline-rw.json \
+          || true
 
-      echo "MinIO buckets and pipeline identity are ready.";
-      '
+        echo "Attaching policy to pipeline user..."
+
+        mc admin policy attach \
+          local \
+          pipeline-rw \
+          --user "$${MINIO_PIPELINE_USER}" \
+          || true
+
+        echo "MinIO initialization completed successfully."
 
     logging: *common-logging
     networks:
