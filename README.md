@@ -1,91 +1,88 @@
 # B2B Catering Analytics Data Platform
+A production-style, end-to-end data engineering and analytics platform for a **B2B catering marketplace****, built with:
 
-A production-style, end-to-end data engineering and analytics platform for a **B2B catering marketplace**, built with:
-
-**Python · MinIO · PostgreSQL · dbt · Apache Hop · FastAPI · Apache Superset · Redis · Docker Compose**
+**Python · MinIO · PostgreSQL · dbt · Apache Hop · FastAPI · Apache Superset · Redis · Docker Compose****
 
 The platform generates synthetic catering transactions, lands immutable source objects in MinIO, validates and incrementally ingests data into PostgreSQL, quarantines invalid records, performs cross-entity reconciliation, builds dimensional analytics marts with dbt, orchestrates execution through Apache Hop, and delivers executive and product analytics through Apache Superset.
 
-> **Project scope:** This repository is a production-style learning, reference, and portfolio implementation. It demonstrates production engineering patterns while remaining reproducible on a Windows laptop using Docker Desktop.
+> **Project scope:**** This repository is a production-style learning, reference, and portfolio implementation. It demonstrates production engineering patterns while remaining reproducible on a Windows laptop using Docker Desktop.
 
 ---
 
 # Architecture Overview
-
 ![Catering Analytics Platform Architecture](diagrams/Catering_Product_Architecture_Diagram.png)
 
 ## End-to-End Architecture
-
 ```text
-                        ┌───────────────────────┐
-                        │      Apache Hop       │
-                        │ Visual Orchestration  │
-                        └───────────┬───────────┘
-                                    │
-                                    │ HTTP
-                                    ▼
-                        ┌───────────────────────┐
-                        │ FastAPI Pipeline      │
-                        │ Runner                │
-                        └───────────┬───────────┘
-                                    │
-                                    ▼
-                      ┌─────────────────────────┐
-                      │   src.run_pipeline      │
-                      │ End-to-End Execution    │
-                      └───────────┬─────────────┘
-                                  │
-                                  ▼
-                    ┌─────────────────────────┐
-                    │ Python Source Generator │
-                    └───────────┬─────────────┘
-                                │
-                                │ CSV / JSONL
-                                ▼
-                    ┌─────────────────────────┐
-                    │         MinIO           │
-                    │                         │
-                    │ landing                 │
-                    │ curated                 │
-                    │ quarantine              │
-                    └───────────┬─────────────┘
-                                │
-                                ▼
-                  ┌──────────────────────────────┐
-                  │ Python Validation / Ingestion│
-                  └──────────────┬───────────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    │                         │
-                    ▼                         ▼
-            ┌───────────────┐        ┌────────────────┐
-            │ PostgreSQL RAW│        │ Invalid Records │
-            │ + Audit       │        │ + Quarantine    │
-            └───────┬───────┘        └────────────────┘
-                    │
-                    ▼
-              ┌───────────────┐
-              │Reconciliation │
-              └───────┬───────┘
-                      │
-                      ▼
-                  ┌───────┐
-                  │  dbt  │
-                  └───┬───┘
-                      │
-             ┌────────┴─────────┐
-             │                  │
-             ▼                  ▼
-          staging              marts
-                                 │
-                                 ▼
-                       ┌──────────────────┐
-                       │ Apache Superset  │
-                       └────────┬─────────┘
-                                │
-                      ┌─────────┴─────────┐
-                      ▼                   ▼
-              Executive Analytics   Product Analytics
+                        ┌───────────────────────┐
+                        │      Apache Hop       │
+                        │ Visual Orchestration  │
+                        └───────────┬───────────┘
+                                    │
+                                    │ HTTP
+                                    ▼
+                        ┌───────────────────────┐
+                        │ FastAPI Pipeline      │
+                        │ Runner                │
+                        └───────────┬───────────┘
+                                    │
+                                    ▼
+                      ┌─────────────────────────┐
+                      │   src.run_pipeline      │
+                      │ End-to-End Execution    │
+                      └───────────┬─────────────┘
+                                  │
+                                  ▼
+                    ┌─────────────────────────┐
+                    │ Python Source Generator │
+                    └───────────┬─────────────┘
+                                │
+                                │ CSV / JSONL
+                                ▼
+                    ┌─────────────────────────┐
+                    │         MinIO           │
+                    │                         │
+                    │ landing                 │
+                    │ curated                 │
+                    │ quarantine              │
+                    └───────────┬─────────────┘
+                                │
+                                ▼
+                  ┌──────────────────────────────┐
+                  │ Python Validation / Ingestion│
+                  └──────────────┬───────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+                    ▼                         ▼
+            ┌───────────────┐        ┌────────────────┐
+            │ PostgreSQL RAW│        │ Invalid Records │
+            │ + Audit       │        │ + Quarantine    │
+            └───────┬───────┘        └────────────────┘
+                    │
+                    ▼
+              ┌───────────────┐
+              │Reconciliation │
+              └───────┬───────┘
+                      │
+                      ▼
+                  ┌───────┐
+                  │  dbt  │
+                  └───┬───┘
+                      │
+             ┌────────┴─────────┐
+             │                  │
+             ▼                  ▼
+          staging              marts
+                                 │
+                                 ▼
+                       ┌──────────────────┐
+                       │ Apache Superset  │
+                       └────────┬─────────┘
+                                │
+                      ┌─────────┴─────────┐
+                      ▼                   ▼
+              Executive Analytics   Product Analytics
 ```
 
 The architecture deliberately separates:
@@ -108,25 +105,23 @@ rather than combining everything into one script.
 ---
 
 # Technology Stack
-
 | Technology | Responsibility |
 |---|---|
-| **Python** | Synthetic source generation, validation, ingestion, reconciliation, pipeline execution |
-| **MinIO** | S3-compatible landing, curated, and quarantine object storage |
-| **PostgreSQL** | RAW warehouse, audit metadata, staging models, dimensional marts |
-| **dbt** | SQL transformation, dimensional modeling, automated data-quality tests |
-| **Apache Hop** | Visual workflow orchestration and success/failure control |
-| **FastAPI** | Internal pipeline-runner API used by Apache Hop |
-| **Apache Superset** | BI semantic layer, virtual datasets, KPIs, and dashboards |
-| **Redis** | Supporting cache service for Superset |
-| **Docker Compose** | Container lifecycle, networking, health checks, persistent volumes |
-| **DBeaver** | PostgreSQL inspection and validation |
-| **PowerShell** | Windows-first operations and local workflow |
+| **Python**** | Synthetic source generation, validation, ingestion, reconciliation, pipeline execution |
+| **MinIO**** | S3-compatible landing, curated, and quarantine object storage |
+| **PostgreSQL**** | RAW warehouse, audit metadata, staging models, dimensional marts |
+| **dbt**** | SQL transformation, dimensional modeling, automated data-quality tests |
+| **Apache Hop**** | Visual workflow orchestration and success/failure control |
+| **FastAPI**** | Internal pipeline-runner API used by Apache Hop |
+| **Apache Superset**** | BI semantic layer, virtual datasets, KPIs, and dashboards |
+| **Redis**** | Supporting cache service for Superset |
+| **Docker Compose**** | Container lifecycle, networking, health checks, persistent volumes |
+| **DBeaver**** | PostgreSQL inspection and validation |
+| **PowerShell**** | Windows-first operations and local workflow |
 
 ---
 
 # Analytics Dashboards
-
 The final analytics layer is implemented in Apache Superset.
 
 Superset connects to PostgreSQL using the restricted:
@@ -147,7 +142,6 @@ Catering Product Analytics
 ---
 
 ## Executive Analytics Dashboard
-
 ![Catering Order Analytics Dashboard](diagrams/Dashboard_1.jpg)
 
 The executive dashboard includes:
@@ -166,7 +160,6 @@ The dashboard provides a high-level view of order activity, customer behavior, a
 ---
 
 ## Product Analytics Dashboard
-
 ![Catering Product Analytics Dashboard](diagrams/Dashboard_2.jpg)
 
 The product analytics dashboard includes:
@@ -182,15 +175,13 @@ This dashboard is backed by order-item facts joined to product and customer dime
 ---
 
 # Source Generation Modes
-
-The project intentionally keeps **normal source simulation** and **failure-path testing** separate.
+The project intentionally keeps **normal source simulation**** and **failure-path testing**** separate.
 
 This prevents test corruption from accidentally becoming part of normal pipeline runs.
 
 ---
 
 ## Clean Source Generator
-
 ```text
 src/generate_and_land.py
 ```
@@ -219,7 +210,6 @@ Normal clean runs should not intentionally create invalid records.
 ---
 
 ## Controlled Bad-Data Generator
-
 ```text
 src/generate_and_land_bad_data.py
 ```
@@ -267,39 +257,38 @@ remain clearly isolated.
 ---
 
 # End-to-End Pipeline
-
 A normal clean pipeline execution performs:
 
 ```text
-1. Generate synthetic catering transactions
-                |
-                v
-2. Write date-partitioned CSV / JSONL objects to MinIO
-                |
-                v
-3. Discover source objects not previously processed
-                |
-                v
-4. Validate source records
-        +-------+-------+
-        |               |
-        v               v
-      Valid           Invalid
-        |               |
-        v               +--> audit.rejected_rows
- PostgreSQL RAW          |
-        |                +--> MinIO quarantine
-        v
-5. Register processed source objects
-        |
-        v
-6. Run cross-entity reconciliation
-        |
-        v
-7. Run dbt staging + marts + tests
-        |
-        v
-8. Serve trusted marts to Apache Superset
+1\. Generate synthetic catering transactions
+                |
+                v
+2\. Write date-partitioned CSV / JSONL objects to MinIO
+                |
+                v
+3\. Discover source objects not previously processed
+                |
+                v
+4\. Validate source records
+        +-------+-------+
+        |               |
+        v               v
+      Valid           Invalid
+        |               |
+        v               +--> audit.rejected_rows
+ PostgreSQL RAW          |
+        |                +--> MinIO quarantine
+        v
+5\. Register processed source objects
+        |
+        v
+6\. Run cross-entity reconciliation
+        |
+        v
+7\. Run dbt staging + marts + tests
+        |
+        v
+8\. Serve trusted marts to Apache Superset
 ```
 
 Apache Hop triggers this same tested pipeline through the internal FastAPI runner.
@@ -307,7 +296,6 @@ Apache Hop triggers this same tested pipeline through the internal FastAPI runne
 ---
 
 # Synthetic Source Domain
-
 The synthetic generator models a B2B catering transaction domain.
 
 Generated entities:
@@ -326,20 +314,20 @@ Example landing layout:
 ```text
 landing/
 ├── customers/
-│   └── ingest_date=YYYY-MM-DD/
+│   └── ingest_date=YYYY-MM-DD/
 ├── products/
-│   └── ingest_date=YYYY-MM-DD/
+│   └── ingest_date=YYYY-MM-DD/
 ├── orders/
-│   └── ingest_date=YYYY-MM-DD/
+│   └── ingest_date=YYYY-MM-DD/
 ├── order_items/
-│   └── ingest_date=YYYY-MM-DD/
+│   └── ingest_date=YYYY-MM-DD/
 ├── payments/
-│   └── ingest_date=YYYY-MM-DD/
+│   └── ingest_date=YYYY-MM-DD/
 ├── events/
-│   └── order_created/
-│       └── ingest_date=YYYY-MM-DD/
+│   └── order_created/
+│       └── ingest_date=YYYY-MM-DD/
 └── _manifests/
-    └── ingest_date=YYYY-MM-DD/
+    └── ingest_date=YYYY-MM-DD/
 ```
 
 Each batch receives a unique:
@@ -353,7 +341,6 @@ which supports lineage from warehouse records back to source generation.
 ---
 
 # MinIO Storage Design
-
 MinIO contains three primary zones.
 
 | Bucket | Purpose |
@@ -369,7 +356,6 @@ Normal pipeline processing uses a dedicated MinIO pipeline account instead of ro
 ---
 
 # PostgreSQL Data Architecture
-
 The PostgreSQL analytics database is organized into four primary schemas:
 
 ```text
@@ -383,7 +369,6 @@ analytics
 ---
 
 ## RAW
-
 The `raw` schema contains accepted source-aligned records.
 
 RAW is intentionally kept close to the source structure and preserves lineage information.
@@ -391,7 +376,6 @@ RAW is intentionally kept close to the source structure and preserves lineage in
 ---
 
 ## Audit
-
 The `audit` schema contains operational metadata.
 
 Important tables include:
@@ -415,7 +399,6 @@ These tables allow the platform to answer:
 ---
 
 ## Staging
-
 The `staging` schema contains standardized dbt views.
 
 Current staging models include:
@@ -431,7 +414,6 @@ stg_payments
 ---
 
 ## Marts
-
 The `marts` schema contains trusted analytics-ready structures.
 
 ```text
@@ -449,7 +431,6 @@ These models provide the main source for BI consumption.
 ---
 
 # Incremental Ingestion
-
 The loader processes only previously unseen source objects.
 
 Processed objects are registered in:
@@ -463,16 +444,15 @@ This means a new source batch is processed incrementally without replacing prior
 ---
 
 # Idempotent Reruns
-
 If the ingestion step is executed again without new source objects, previously processed object versions are skipped.
 
 A validated rerun produced:
 
 ```json
 {
-  "rows_loaded": 0,
-  "objects_processed": 0,
-  "rejected_rows": 0
+  "rows_loaded": 0,
+  "objects_processed": 0,
+  "rejected_rows": 0
 }
 ```
 
@@ -481,7 +461,6 @@ This demonstrates that rerunning the loader does not duplicate already processed
 ---
 
 # Data Quality and Quarantine
-
 Validation occurs before accepted rows are written into trusted RAW tables.
 
 Bad records are routed to:
@@ -503,7 +482,6 @@ rather than being silently discarded or allowed into trusted warehouse data.
 ---
 
 # Why Validation Alone Is Not Enough
-
 The controlled bad-data test exposed an important engineering lesson:
 
 > A row can be individually valid while the overall dataset is still inconsistent.
@@ -512,10 +490,10 @@ For example:
 
 ```text
 order rejected
-    |
-    +--> related order_items may still be individually valid
-    |
-    +--> related payment may still be individually valid
+    |
+    +--> related order_items may still be individually valid
+    |
+    +--> related payment may still be individually valid
 ```
 
 This can create orphan relationships.
@@ -531,7 +509,6 @@ cross-entity reconciliation
 ---
 
 # Reconciliation
-
 The reconciliation stage checks integrity across accepted datasets.
 
 Current checks include:
@@ -547,10 +524,10 @@ A healthy clean run requires:
 
 ```json
 {
-  "orders_vs_order_items_orphans": 0,
-  "payments_vs_orders_orphans": 0,
-  "negative_order_totals": 0,
-  "order_item_amount_mismatch": 0
+  "orders_vs_order_items_orphans": 0,
+  "payments_vs_orders_orphans": 0,
+  "negative_order_totals": 0,
+  "order_item_amount_mismatch": 0
 }
 ```
 
@@ -559,7 +536,6 @@ before downstream analytics processing is considered clean.
 ---
 
 # dbt Analytics Engineering
-
 dbt transforms accepted RAW data into standardized staging models and dimensional marts.
 
 Current validated build:
@@ -596,8 +572,8 @@ Example relationship:
 
 ```text
 fact_orders.customer_key
-        |
-        v
+        |
+        v
 dim_customer.customer_key
 ```
 
@@ -605,15 +581,14 @@ Example product relationship:
 
 ```text
 fact_order_items.product_key
-        |
-        v
+        |
+        v
 dim_product.product_key
 ```
 
 ---
 
 # Apache Hop Orchestration
-
 Apache Hop provides the visual orchestration layer.
 
 The workflow is stored at:
@@ -625,15 +600,15 @@ hop/workflows/catering_analytics_orchestration.hwf
 Workflow behavior:
 
 ```text
-                 +---- success ----> Success
+                 +---- success ----> Success
 Start -> Pipeline
-                 +---- failure ----> Failure
+                 +---- failure ----> Failure
 ```
 
 Hop invokes:
 
 ```text
-http://pipeline-runner:8000/hop/run
+http\://pipeline-runner:8000/hop/run
 ```
 
 inside the Docker network.
@@ -649,7 +624,6 @@ This allows Hop to orchestrate the already-tested pipeline without duplicating i
 ---
 
 # FastAPI Pipeline Runner
-
 The internal runner is implemented in:
 
 ```text
@@ -659,21 +633,18 @@ src/pipeline_runner_api.py
 Endpoints:
 
 ```text
-GET  /health
+GET  /health
 POST /run
-GET  /hop/run
+GET  /hop/run
 ```
 
 ### `/health`
-
 Used by Docker health checks.
 
 ### `/run`
-
 Provides a standard programmatic POST trigger.
 
 ### `/hop/run`
-
 Provides a Hop-friendly GET endpoint.
 
 All execution ultimately delegates to:
@@ -685,7 +656,6 @@ python -m src.run_pipeline
 ---
 
 # Why Use FastAPI Between Hop and Python?
-
 The FastAPI service creates a narrow orchestration boundary.
 
 Apache Hop does not require:
@@ -701,7 +671,6 @@ This is cleaner and safer than allowing the orchestration container to control D
 ---
 
 # Apache Superset Analytics Layer
-
 Superset consumes trusted marts through a restricted PostgreSQL role:
 
 ```text
@@ -713,7 +682,6 @@ Two virtual datasets provide a small semantic layer.
 ---
 
 ## Catering Order Analytics
-
 Combines order facts with customer/payment context.
 
 Supports:
@@ -732,7 +700,6 @@ Payment Method Mix
 ---
 
 ## Catering Product Analytics
-
 Combines order-item facts with product/customer context.
 
 Supports:
@@ -746,7 +713,6 @@ Units Sold by Category
 ---
 
 # Validated Project Results
-
 The completed project has demonstrated:
 
 | Capability | Result |
@@ -776,7 +742,6 @@ Point-in-time dashboard values are intentionally not permanent acceptance criter
 ---
 
 # Security and Least Privilege
-
 PostgreSQL responsibilities are separated across dedicated roles:
 
 ```text
@@ -787,19 +752,15 @@ bi_reader
 ```
 
 ### `platform_admin`
-
 Database administration.
 
 ### `ingest_user`
-
 Pipeline ingestion.
 
 ### `dbt_user`
-
 Transformation workloads.
 
 ### `bi_reader`
-
 Read-only analytics consumption.
 
 Apache Superset uses:
@@ -831,7 +792,6 @@ with placeholder values only.
 ---
 
 # Docker Compose Stack
-
 The platform is defined in:
 
 ```text
@@ -879,13 +839,12 @@ using Docker service names instead of `localhost`.
 ---
 
 # Local Service Endpoints
-
 | Service | Address |
 |---|---|
-| Apache Hop Web | `http://localhost:8080` |
-| Apache Superset | `http://localhost:8088` |
-| MinIO API | `http://localhost:9000` |
-| MinIO Console | `http://localhost:9001` |
+| Apache Hop Web | `http\://localhost:8080` |
+| Apache Superset | `http\://localhost:8088` |
+| MinIO API | `http\://localhost:9000` |
+| MinIO Console | `http\://localhost:9001` |
 | PostgreSQL / DBeaver | `localhost:5432` |
 
 The FastAPI runner is intentionally internal to the Docker network.
@@ -893,7 +852,6 @@ The FastAPI runner is intentionally internal to the Docker network.
 ---
 
 # Repository Layout
-
 ```text
 .
 ├── compose.yaml
@@ -902,54 +860,53 @@ The FastAPI runner is intentionally internal to the Docker network.
 ├── README.md
 │
 ├── src/
-│   ├── common.py
-│   ├── generate_and_land.py
-│   ├── generate_and_land_bad_data.py
-│   ├── load_minio_to_postgres.py
-│   ├── reconcile.py
-│   ├── run_pipeline.py
-│   └── pipeline_runner_api.py
+│   ├── common.py
+│   ├── generate_and_land.py
+│   ├── generate_and_land_bad_data.py
+│   ├── load_minio_to_postgres.py
+│   ├── reconcile.py
+│   ├── run_pipeline.py
+│   └── pipeline_runner_api.py
 │
 ├── dbt/
-│   ├── dbt_project.yml
-│   ├── profiles.yml
-│   ├── models/
-│   │   ├── staging/
-│   │   └── marts/
-│   └── tests/
+│   ├── dbt_project.yml
+│   ├── profiles.yml
+│   ├── models/
+│   │   ├── staging/
+│   │   └── marts/
+│   └── tests/
 │
 ├── postgres/
-│   └── init/
+│   └── init/
 │
 ├── minio/
-│   └── policies/
+│   └── policies/
 │
 ├── docker/
-│   ├── minio/
-│   ├── pipeline/
-│   └── superset/
+│   ├── minio/
+│   ├── pipeline/
+│   └── superset/
 │
 ├── hop/
-│   └── workflows/
-│       └── catering_analytics_orchestration.hwf
+│   └── workflows/
+│       └── catering_analytics_orchestration.hwf
 │
 ├── diagrams/
-│   ├── Catering_Product_Architecture_Diagram.png
-│   ├── Dashboard_1.jpg
-│   └── Dashboard_2.jpg
+│   ├── Catering_Product_Architecture_Diagram.png
+│   ├── Dashboard_1.jpg
+│   └── Dashboard_2.jpg
 │
 ├── scripts/
-│   └── windows/
+│   └── windows/
 │
 ├── docs/
-├── logs/          # runtime, gitignored
-└── backups/       # local output, gitignored
+├── logs/          # runtime, gitignored
+└── backups/       # local output, gitignored
 ```
 
 ---
 
 # Prerequisites
-
 Reference environment:
 
 - Windows 11
@@ -963,10 +920,18 @@ Docker Desktop must be running before starting the platform.
 
 ---
 
+# Complete Deployment Guide
+
+For the complete Windows deployment, validation, operations, controlled bad-data testing, Apache Hop orchestration, dbt execution, Superset setup, and troubleshooting walkthrough, see:
+
+**[Catering Analytics Deployment Guide](docs/CATERING_ANALYTICS_DEPLOYMENT_GUIDE.md)**
+
+The README is the project overview and quick-start reference. The deployment guide is the authoritative step-by-step implementation and operations runbook.
+
+---
+
 # Quick Start
-
 ## 1. Clone the repository
-
 ```powershell
 git clone <repository-url>
 cd <repository-folder>
@@ -975,7 +940,6 @@ cd <repository-folder>
 ---
 
 ## 2. Create `.env`
-
 ```powershell
 Copy-Item .env.example .env
 ```
@@ -993,7 +957,6 @@ and replace all placeholder passwords and secrets.
 ---
 
 ## 3. Validate Compose
-
 ```powershell
 docker compose config > $null
 ```
@@ -1013,7 +976,6 @@ docker compose --profile tools config --services
 ---
 
 ## 4. Build
-
 ```powershell
 docker compose build
 ```
@@ -1021,7 +983,6 @@ docker compose build
 ---
 
 ## 5. Start
-
 ```powershell
 docker compose up -d
 ```
@@ -1035,7 +996,6 @@ docker compose ps
 ---
 
 # Running the Clean Pipeline
-
 The normal clean pipeline can be executed with:
 
 ```powershell
@@ -1047,9 +1007,7 @@ This uses the normal clean generator.
 ---
 
 # Run Individual Pipeline Stages
-
 ## Generate Clean Data
-
 ```powershell
 docker compose --profile tools run --rm pipeline python -m src.generate_and_land
 ```
@@ -1057,7 +1015,6 @@ docker compose --profile tools run --rm pipeline python -m src.generate_and_land
 ---
 
 ## Load New MinIO Objects
-
 ```powershell
 docker compose --profile tools run --rm pipeline python -m src.load_minio_to_postgres
 ```
@@ -1065,7 +1022,6 @@ docker compose --profile tools run --rm pipeline python -m src.load_minio_to_pos
 ---
 
 ## Run Reconciliation
-
 ```powershell
 docker compose --profile tools run --rm pipeline python -m src.reconcile
 ```
@@ -1073,7 +1029,6 @@ docker compose --profile tools run --rm pipeline python -m src.reconcile
 ---
 
 ## Run dbt
-
 ```powershell
 docker compose --profile tools run --rm pipeline dbt build --project-dir /app/dbt --profiles-dir /app/dbt
 ```
@@ -1081,7 +1036,6 @@ docker compose --profile tools run --rm pipeline dbt build --project-dir /app/db
 ---
 
 # Running the Controlled Bad-Data Test
-
 Generate an intentionally invalid test batch:
 
 ```powershell
@@ -1106,16 +1060,15 @@ and:
 MinIO quarantine
 ```
 
-The bad-data generator is **not** used by the normal clean orchestration path.
+The bad-data generator is **not**** used by the normal clean orchestration path.
 
 ---
 
 # Run Through Apache Hop
-
 Open:
 
 ```text
-http://localhost:8080
+http\://localhost:8080
 ```
 
 Workflow:
@@ -1133,7 +1086,7 @@ docker compose logs -f pipeline-runner
 The Hop workflow calls:
 
 ```text
-http://pipeline-runner:8000/hop/run
+http\://pipeline-runner:8000/hop/run
 ```
 
 and follows explicit success/failure branches.
@@ -1141,11 +1094,10 @@ and follows explicit success/failure branches.
 ---
 
 # Validate Pipeline Runs
-
 Recent runs:
 
 ```sql
-SELECT *
+SELECT \*
 FROM audit.pipeline_runs
 ORDER BY started_at DESC
 LIMIT 10;
@@ -1154,7 +1106,7 @@ LIMIT 10;
 Processed objects:
 
 ```sql
-SELECT *
+SELECT \*
 FROM audit.ingested_objects
 ORDER BY ingested_at DESC
 LIMIT 20;
@@ -1164,22 +1116,21 @@ Rejected records:
 
 ```sql
 SELECT
-    entity_name,
-    reason,
-    COUNT(*) AS rejected_count
+    entity_name,
+    reason,
+    COUNT(\*) AS rejected_count
 FROM audit.rejected_rows
 GROUP BY
-    entity_name,
-    reason
+    entity_name,
+    reason
 ORDER BY
-    entity_name,
-    reason;
+    entity_name,
+    reason;
 ```
 
 ---
 
 # Operational Safety
-
 Stop containers while preserving persistent data:
 
 ```powershell
@@ -1206,9 +1157,7 @@ Persistent Docker volumes protect:
 ---
 
 # Key Design Decisions
-
 ## Why MinIO Before PostgreSQL?
-
 The landing layer creates an immutable source boundary.
 
 Benefits:
@@ -1222,7 +1171,6 @@ Benefits:
 ---
 
 ## Why RAW Before dbt?
-
 RAW preserves accepted source-aligned history.
 
 dbt owns downstream analytical interpretation.
@@ -1232,7 +1180,6 @@ This prevents analytical business logic from being embedded into source ingestio
 ---
 
 ## Why Audit Source Objects?
-
 Object-level tracking allows the loader to distinguish:
 
 ```text
@@ -1250,7 +1197,6 @@ which enables safe incremental and idempotent processing.
 ---
 
 ## Why Both Validation and Reconciliation?
-
 Validation asks:
 
 > Is this individual record acceptable?
@@ -1264,7 +1210,6 @@ Both controls are required.
 ---
 
 ## Why Separate Clean and Bad-Data Generators?
-
 Normal operation and failure-path testing should not share hidden behavior.
 
 The project therefore keeps:
@@ -1286,7 +1231,6 @@ This separation makes demonstrations reproducible and prevents accidental contam
 ---
 
 ## Why FastAPI Between Hop and Python?
-
 FastAPI provides a narrow orchestration interface.
 
 Hop does not need:
@@ -1300,7 +1244,6 @@ It only requires access to an internal HTTP endpoint.
 ---
 
 ## Why a Read-Only BI Role?
-
 Superset should not use:
 
 ```text
@@ -1320,8 +1263,7 @@ which limits BI access to the permissions actually required.
 ---
 
 # Production-Readiness Boundary
-
-This repository demonstrates production **engineering patterns**, not production **infrastructure**.
+This repository demonstrates production **engineering patterns****, not production **infrastructure****.
 
 A real production implementation would typically add:
 
@@ -1361,27 +1303,21 @@ Those are deliberate scope boundaries rather than hidden omissions.
 ---
 
 # Interview Walkthrough
-
 A concise walkthrough:
 
 ### 1. Source Simulation
-
 Generate realistic B2B catering transactions and order events.
 
 ### 2. Durable Landing
-
 Persist date-partitioned source objects in MinIO.
 
 ### 3. Incremental Ingestion
-
 Process only source objects that have not already been loaded.
 
 ### 4. Row-Level Quality Gate
-
 Validate records before RAW insertion.
 
 ### 5. Failure Preservation
-
 Write rejected records to:
 
 ```text
@@ -1395,33 +1331,26 @@ MinIO quarantine
 ```
 
 ### 6. Auditability
-
 Track pipeline runs, processed objects, rejection reasons, and batch lineage.
 
 ### 7. Reconciliation
-
 Validate relationships across independently accepted entities.
 
 ### 8. Analytics Engineering
-
 Transform source-aligned RAW data into tested dimensional marts using dbt.
 
 ### 9. Orchestration
-
 Trigger the complete pipeline through Apache Hop and FastAPI.
 
 ### 10. Controlled Consumption
-
 Expose trusted marts to Superset through a read-only database role.
 
 ### 11. Business Analytics
-
 Deliver executive and product analytics dashboards.
 
 ---
 
 # What Makes This More Than a Basic ETL Demo?
-
 A basic ETL pipeline answers:
 
 > Did the data move?
@@ -1451,7 +1380,6 @@ Those controls are what turn a collection of tools into a data platform.
 ---
 
 # Documentation
-
 Detailed implementation and operational documentation is available under:
 
 ```text
@@ -1462,6 +1390,7 @@ Recommended guides:
 
 | Document | Purpose |
 |---|---|
+| `docs/CATERING_ANALYTICS_DEPLOYMENT_GUIDE.md` | Complete deployment, validation, operations, and troubleshooting runbook |
 | `docs/01-architecture.md` | Architecture and responsibilities |
 | `docs/02-windows-prerequisites.md` | Windows and Docker setup |
 | `docs/03-first-run.md` | First-run procedure |
@@ -1480,7 +1409,6 @@ Recommended guides:
 ---
 
 # Key Takeaways
-
 The completed platform combines:
 
 ```text
@@ -1532,8 +1460,7 @@ how trusted data reached business users
 ---
 
 # Project Status
-
-**Completed local reference implementation**
+**Completed local reference implementation****
 
 Validated:
 
